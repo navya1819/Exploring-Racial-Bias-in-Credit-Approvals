@@ -1,141 +1,141 @@
-% %% Data Preparation
-% hmda = xlsread('hmda.xlsx');
+%% Data Preparation
+hmda = xlsread('hmda.xlsx');
+
+% deny	-- Factor. Mortgage application status. Was the mortgage denied?
+% pirat	-- payments-to-income ratio
+% hirat	-- inhouse expense-to-total-income ratio
+% lvrat	-- loan-to-value ratio
+% chist	-- Factor. consumer credit score
+% mhist	-- Factor. mortgage credit score
+% phist	-- Factor. Public bad credit record?
+% unemp	-- 1989 Massachusetts unemployment rate in applicant's industry
+% selfemp	-- Factor. Is the individual self-employed?
+% insurance	-- Factor. Was the individual denied mortgage insurance?
+% condomin	-- Factor. Is the unit a condominium?
+% afam	-- Factor. Is the individual African-American? Yes is Black Family, No is White Family
+% single	-- Factor. Is the individual single?
+% hschool	-- Factor. Does the individual have a high-school diploma?
 % 
-% % deny	-- Factor. Mortgage application status. Was the mortgage denied?
-% % pirat	-- payments-to-income ratio
-% % hirat	-- inhouse expense-to-total-income ratio
-% % lvrat	-- loan-to-value ratio
-% % chist	-- Factor. consumer credit score
-% % mhist	-- Factor. mortgage credit score
-% % phist	-- Factor. Public bad credit record?
-% % unemp	-- 1989 Massachusetts unemployment rate in applicant's industry
-% % selfemp	-- Factor. Is the individual self-employed?
-% % insurance	-- Factor. Was the individual denied mortgage insurance?
-% % condomin	-- Factor. Is the unit a condominium?
-% % afam	-- Factor. Is the individual African-American? Yes is Black Family, No is White Family
-% % single	-- Factor. Is the individual single?
-% % hschool	-- Factor. Does the individual have a high-school diploma?
-% 
-% deny = hmda(:,1);
-% pirat = hmda(:,2);
-% hirat = hmda(:,3);
-% lvrat = hmda(:,4);
-% chist = hmda(:,5);
-% mhist = hmda(:,6);
-% phist = hmda(:,7);
-% unemp = hmda(:,8);
-% selfemp = hmda(:,9);
-% insurance = hmda(:,10);
-% condomin = hmda(:,11);
-% afam = hmda(:,12);
-% single = hmda(:,13);
-% hschool = hmda(:,14);
+deny = hmda(:,1);
+pirat = hmda(:,2);
+hirat = hmda(:,3);
+lvrat = hmda(:,4);
+chist = hmda(:,5);
+mhist = hmda(:,6);
+phist = hmda(:,7);
+unemp = hmda(:,8);
+selfemp = hmda(:,9);
+insurance = hmda(:,10);
+condomin = hmda(:,11);
+afam = hmda(:,12);
+single = hmda(:,13);
+hschool = hmda(:,14);
 % % 
-% % idx = strcmp(hmda.deny, "yes");
-% % hmda.deny(idx) = {1};
-% % idx = strcmp(hmda.deny, "no");
-% % hmda.deny(idx) = {0};
-% % % 
-% % for col = 1:width(hmda)
-% %      if iscell(hmda{:, col}) || isstring(hmda{:, col})
-% %          % Replace "yes" with 1
-% %          idx_yes = strcmp(hmda{:, col}, "yes");
-% %          hmda{idx_yes, col} = {1};
-% % 
-% %          % Replace "no" with 0
-% %          idx_no = strcmp(hmda{:, col}, "no");
-% %          hmda{idx_no, col} = {0};
-% %      end
-% %  end
-% % % 
+idx = strcmp(hmda.deny, "yes");
+hmda.deny(idx) = {1};
+idx = strcmp(hmda.deny, "no");
+hmda.deny(idx) = {0};
 % 
-% %% Linear Regression
-% y = deny;
-% X = [ones(size(y)) pirat hirat lvrat chist mhist phist unemp selfemp insurance condomin afam single hschool];
+for col = 1:width(hmda)
+      if iscell(hmda{:, col}) || isstring(hmda{:, col})
+          % Replace "yes" with 1
+          idx_yes = strcmp(hmda{:, col}, "yes");
+          hmda{idx_yes, col} = {1};
+ 
+          % Replace "no" with 0
+          idx_no = strcmp(hmda{:, col}, "no");
+          hmda{idx_no, col} = {0};
+      end
+  end
+ % 
 % 
-% bols = regress(y,X)
+ %% Linear Regression
+ y = deny;
+ X = [ones(size(y)) pirat hirat lvrat chist mhist phist unemp selfemp insurance condomin afam single hschool];
+ 
+ bols = regress(y,X)
+ 
+ rowLabel = char('pirat', 'hirat' ,'lvrat', 'chist', 'mhist', 'phist', 'unemp' ,'selfemp', 'insurance', 'condomin', 'afam', 'single', 'hschool');
+ k = size(bols , 1);
 % 
-% rowLabel = char('pirat', 'hirat' ,'lvrat', 'chist', 'mhist', 'phist', 'unemp' ,'selfemp', 'insurance', 'condomin', 'afam', 'single', 'hschool');
-% k = size(bols , 1);
+ fprintf('Linear Regression Results\n\n')
+ fprintf('Variable   Coefficient\n');
+ fprintf('-------------------------\n')
+ for i = 1:k-1
+     fprintf(' %s %1.5f \n', rowLabel(i,:), bols(i));
+ end
+ 
+ %% Binary Probit Model
+ burn = 2500;
+ mcmc = 10000;
+ R = burn + mcmc;
+ k = size(X, 2);
+ 
+ b0 = zeros(k,1);
+ B0 = 100*eye(k);
+ invB0 = B0\eye(k);
+ invB0b0 = B0\b0;
+ XX = X'*X;
+ z = y;
 % 
-% fprintf('Linear Regression Results\n\n')
-% fprintf('Variable   Coefficient\n');
-% fprintf('-------------------------\n')
-% for i = 1:k-1
-%     fprintf(' %s %1.5f \n', rowLabel(i,:), bols(i));
-% end
+ betamat = zeros(k,mcmc);
+ betamat(:,1) = bols;
 % 
-% %% Binary Probit Model
-% burn = 2500;
-% mcmc = 10000;
-% R = burn + mcmc;
-% k = size(X, 2);
+ tic 
+ h = waitbar(0, 'Simulation In Progress');
 % 
-% b0 = zeros(k,1);
-% B0 = 100*eye(k);
-% invB0 = B0\eye(k);
-% invB0b0 = B0\b0;
-% XX = X'*X;
-% z = y;
+ for i = 2:R;
+     betamat(:,i) = drawbeta_binary_probit(XX,invB0, z, invB0b0, X);
+     z = drawz_binary_probit(z, X, betamat(:,i),y);
+     waitbar(i/R);
+ end
 % 
-% betamat = zeros(k,mcmc);
-% betamat(:,1) = bols;
+ close(h)
+ toc
 % 
-% tic 
-% h = waitbar(0, 'Simulation In Progress');
+ betaPostMean = mean(betamat(:,burn+1:R),2);
+ betaPostStd = std(betamat(:,burn+1:R),0,2);
 % 
-% for i = 2:R;
-%     betamat(:,i) = drawbeta_binary_probit(XX,invB0, z, invB0b0, X);
-%     z = drawz_binary_probit(z, X, betamat(:,i),y);
-%     waitbar(i/R);
-% end
-% 
-% close(h)
-% toc
-% 
-% betaPostMean = mean(betamat(:,burn+1:R),2);
-% betaPostStd = std(betamat(:,burn+1:R),0,2);
-% 
-% %% Trace plot for each coefficient
+%% Trace plot for each coefficient
 % figure;
-% for j = 1:k
-%     subplot(ceil(k/3), 3, j);
-%     plot(betamat(j, burn+1:R));
-%     title(['Trace Plot for Beta ', num2str(j)]);
-%     xlabel('Iteration');
-%     ylabel(['Beta ', num2str(j)]);
-% end
+ for j = 1:k
+     subplot(ceil(k/3), 3, j);
+     plot(betamat(j, burn+1:R));
+     title(['Trace Plot for Beta ', num2str(j)]);
+     xlabel('Iteration');
+     ylabel(['Beta ', num2str(j)]);
+ end
 % 
-% % Autocorrelation plot for one coefficient (e.g., first coefficient)
-% figure;
-% autocorr(betamat(1, burn+1:R), 'NumLags', 50);
-% title('Autocorrelation for Beta 1');
+% Autocorrelation plot for one coefficient (e.g., first coefficient)
+ figure;
+ autocorr(betamat(1, burn+1:R), 'NumLags', 50);
+ title('Autocorrelation for Beta 1');
 % 
-% %% MLE Estimates of coefficients
-% beta0 = zeros(k,1);
-% [n, k] = size(X);
+ %% MLE Estimates of coefficients
+ beta0 = zeros(k,1);
+ [n, k] = size(X);
 % 
-% % Optimization options
-% options = optimoptions('fminunc', 'Algorithm', 'quasi-newton', 'Display', 'iter');
+ % Optimization options
+ options = optimoptions('fminunc', 'Algorithm', 'quasi-newton', 'Display', 'iter');
 % 
-% % Maximize log-likelihood
-% [beta_mle, fval, exitflag, output, grad, hessian] = fminunc(@(b) probit_loglik(b, X, y), beta0, options);
+ % Maximize log-likelihood
+ [beta_mle, fval, exitflag, output, grad, hessian] = fminunc(@(b) probit_loglik(b, X, y), beta0, options);
 % 
-% disp('Estimated Coefficients (MLE):');
-% disp(beta_mle);
+ disp('Estimated Coefficients (MLE):');
+ disp(beta_mle);
 % 
-% covMatrix = inv(hessian);
-% stdErrorMLE = sqrt(diag(covMatrix));
+ covMatrix = inv(hessian);
+ stdErrorMLE = sqrt(diag(covMatrix));
 % 
-% %% Table Printing
-% fprintf('Beta Estimation Results\n\n')
-% fprintf('Variable   Linear Regression  MCMC Mean  MCMC Std Error  MLE Mean  MLE Std Error\n');
-% fprintf('----------------------------------------------------------------------------------\n')
-% for i = 1:k-1
-%     fprintf(' %s    %1.4f         %1.4f       %1.4f        %1.4f        %1.4f \n', rowLabel(i,:), bols(i), betaPostMean(i), betaPostStd(i), beta_mle(i), stdErrorMLE(i));
-% end
+ %% Table Printing
+ fprintf('Beta Estimation Results\n\n')
+ fprintf('Variable   Linear Regression  MCMC Mean  MCMC Std Error  MLE Mean  MLE Std Error\n');
+ fprintf('----------------------------------------------------------------------------------\n')
+ for i = 1:k-1
+     fprintf(' %s    %1.4f         %1.4f       %1.4f        %1.4f        %1.4f \n', rowLabel(i,:), bols(i), betaPostMean(i), betaPostStd(i), beta_mle(i), stdErrorMLE(i));
+ end
 % 
-% %% Average Covariate Effect (ACE)
+ %% Average Covariate Effect (ACE)
 afam_ml_est = 0.3957;
 % 
 % % Define function to calculate Average Covariate Effect (ACE)
